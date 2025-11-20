@@ -1,4 +1,4 @@
-// CLOOFY One-File Business System (Backend + Frontend, Upgraded)
+// CLOOFY One-File Business System (Backend + Frontend, Advanced UI)
 
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
@@ -529,183 +529,520 @@ const htmlPage = `
   <title>CLOOFY Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    * { box-sizing: border-box; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
-    body { margin: 0; background: #fff7fb; color: #333; }
-    .topbar { background: linear-gradient(90deg, #ff9ad5, #fdd37a); padding: 12px 16px; color: #fff; }
-    .topbar h1 { margin: 0; font-size: 1.4rem; }
-
-    nav.tabs { display: flex; border-bottom: 1px solid #eee; overflow-x: auto; }
-    nav.tabs button { flex: 1; padding: 10px; border: none; background: #fff; font-size: 0.9rem; cursor: pointer; }
-    nav.tabs button.active { border-bottom: 3px solid #ff8ac5; font-weight: 600; background: #fff0fb; }
-
-    main { padding: 12px; }
-    .tab { display: none; }
-    .tab.active { display: block; }
-
-    .cards { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-    .card { flex: 1 1 120px; background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
-    .card h3 { margin: 0 0 4px; font-size: 0.9rem; }
-    .card p { margin: 0; font-size: 1.1rem; font-weight: 600; }
-
-    .card.wide { flex-basis: 100%; }
-
-    #salesChart { max-height: 260px; }
-
-    label { display: block; margin: 8px 0; font-size: 0.9rem; }
-    input, select, button { width: 100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid #ddd; font-size: 0.9rem; }
-
-    button { background: #ff8ac5; color: white; font-weight: 600; border: none; }
-    button:hover { opacity: 0.9; }
-
-    .ingredient-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px; margin-bottom: 6px; background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-    .ingredient-row div:first-child { flex: 2; }
-    .ingredient-row div:last-child { flex: 1; display: flex; flex-direction: column; }
-    .ingredient-row .adj-input { width: 100%; margin-bottom: 4px; }
-    .ingredient-row .adj-btn { width: 100%; }
-
-    .form-grid { display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
-    @media (min-width: 650px) {
-      .form-grid { grid-template-columns: repeat(3, 1fr); }
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
     }
 
-    .status { margin-top: 8px; font-size: 0.9rem; }
-    .status.success { color: #188a42; }
-    .status.error { color: #d93232; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #ffe3f3 0, #ffeef7 40%, #f4f0ff 100%);
+      color: #26233a;
+    }
 
-    .hint { font-size: 0.8rem; color: #666; }
+    /* App shell */
+    .app-shell {
+      max-width: 1120px;
+      margin: 16px auto;
+      padding: 12px;
+    }
 
-    ul { padding-left: 18px; }
+    @media (min-width: 768px) {
+      .app-shell {
+        margin: 32px auto;
+        padding: 0;
+      }
+    }
+
+    .app-card {
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 18px 40px rgba(64, 46, 87, 0.16);
+      overflow: hidden;
+    }
+
+    /* Topbar */
+    .topbar {
+      background: linear-gradient(90deg, #ff9ad5, #ff7eb3, #ffc46b);
+      padding: 16px 20px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .topbar-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      letter-spacing: 0.04em;
+    }
+
+    .topbar span {
+      font-size: 0.8rem;
+      opacity: 0.9;
+    }
+
+    .cloud-pill {
+      background: rgba(255, 255, 255, 0.16);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      backdrop-filter: blur(6px);
+    }
+
+    /* Tabs */
+    nav.tabs {
+      display: flex;
+      gap: 4px;
+      padding: 6px 10px 10px;
+      border-bottom: 1px solid #f3e8ff;
+      background: linear-gradient(to right, #fff7fd, #f9f4ff);
+    }
+
+    nav.tabs button {
+      flex: 1;
+      padding: 8px 6px;
+      border-radius: 999px;
+      border: none;
+      background: transparent;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #6b5c87;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
+    }
+
+    nav.tabs button span.icon {
+      font-size: 1rem;
+    }
+
+    nav.tabs button.active {
+      background: #fff;
+      color: #ff4f9d;
+      box-shadow: 0 6px 14px rgba(255, 79, 157, 0.25);
+      transform: translateY(-1px);
+    }
+
+    nav.tabs button:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    /* Main layout */
+    main {
+      padding: 14px 14px 18px;
+      background: linear-gradient(to bottom, #ffffff, #fff8ff);
+    }
+
+    @media (min-width: 900px) {
+      main {
+        padding: 18px 20px 22px;
+      }
+    }
+
+    .tab {
+      display: none;
+      animation: fadeIn 0.18s ease-out;
+    }
+
+    .tab.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Dashboard cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 10px 12px;
+      box-shadow: 0 10px 24px rgba(121, 96, 152, 0.08);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      right: -30px;
+      top: -30px;
+      width: 80px;
+      height: 80px;
+      border-radius: 40%;
+      background: radial-gradient(circle at 30% 30%, rgba(255, 187, 255, 0.5), transparent);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .card h3 {
+      margin: 0 0 4px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #a697c7;
+    }
+
+    .card p {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+      color: #3b3055;
+    }
+
+    .card.wide {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-subline {
+      font-size: 0.8rem;
+      color: #8a7aa8;
+      margin-top: 2px;
+    }
+
+    /* Sections */
+    h2 {
+      margin: 4px 0 12px;
+      font-size: 1.15rem;
+      color: #3b3055;
+    }
+
+    h3 {
+      color: #4a3c68;
+    }
+
+    /* Chart container */
+    #salesChart {
+      max-height: 260px;
+    }
+
+    /* Forms & controls */
+    label {
+      display: block;
+      margin: 8px 0;
+      font-size: 0.9rem;
+      color: #5c4b80;
+    }
+
+    input,
+    select,
+    button {
+      width: 100%;
+      padding: 8px 10px;
+      margin-top: 4px;
+      border-radius: 10px;
+      border: 1px solid #e1d4ff;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #ff7eb3;
+      box-shadow: 0 0 0 1px rgba(255, 126, 179, 0.2);
+    }
+
+    button {
+      background: linear-gradient(135deg, #ff7eb3, #ff4f9d);
+      color: #fff;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(255, 79, 157, 0.35);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, opacity 0.1s ease;
+    }
+
+    button:hover {
+      opacity: 0.96;
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(255, 79, 157, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 8px 18px rgba(255, 79, 157, 0.3);
+    }
+
+    /* Ingredient list */
+    .ingredient-row {
+      display: grid;
+      grid-template-columns: minmax(0, 2.3fr) minmax(0, 1.1fr);
+      gap: 8px;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #ffffff, #fdf4ff);
+      border-radius: 14px;
+      box-shadow: 0 8px 18px rgba(120, 88, 155, 0.06);
+    }
+
+    .ingredient-row div:first-child {
+      font-size: 0.85rem;
+    }
+
+    .ingredient-row strong {
+      font-size: 0.92rem;
+      color: #3b3055;
+    }
+
+    .ingredient-row .adj-input {
+      width: 100%;
+      margin-bottom: 4px;
+    }
+
+    .ingredient-row .adj-btn {
+      width: 100%;
+      font-size: 0.8rem;
+      padding-block: 7px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    @media (min-width: 768px) {
+      .form-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .status {
+      margin-top: 8px;
+      font-size: 0.85rem;
+    }
+
+    .status.success {
+      color: #188a42;
+    }
+
+    .status.error {
+      color: #d93232;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: #8575a5;
+    }
+
+    ul {
+      padding-left: 18px;
+      font-size: 0.85rem;
+    }
+
+    /* Settings */
+    #reset-all-btn {
+      background: linear-gradient(135deg, #ff5b6c, #f53d3d);
+      box-shadow: 0 10px 24px rgba(245, 61, 61, 0.35);
+    }
+
+    /* Containers within tabs */
+    .section-card {
+      background: #ffffff;
+      border-radius: 18px;
+      padding: 10px 12px 12px;
+      box-shadow: 0 10px 22px rgba(119, 93, 156, 0.06);
+      margin-bottom: 14px;
+    }
+
+    .section-card h2 {
+      margin-top: 0;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <h1>CLOOFY – Control Panel</h1>
-  </header>
-
-  <nav class="tabs">
-    <button data-tab="dashboard" class="active">Dashboard</button>
-    <button data-tab="sales">Record Sale</button>
-    <button data-tab="inventory">Inventory</button>
-    <button data-tab="reports">Reports</button>
-    <button data-tab="settings">Settings</button>
-  </nav>
-
-  <main>
-    <!-- DASHBOARD -->
-    <section id="tab-dashboard" class="tab active">
-      <div class="cards">
-        <div class="card">
-          <h3>Total Revenue</h3>
-          <p id="dash-revenue">LKR 0</p>
+  <div class="app-shell">
+    <div class="app-card">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1>CLOOFY – Control Panel</h1>
+          <span>Premium drizzle cotton candy kiosk dashboard</span>
         </div>
-        <div class="card">
-          <h3>Total Tubs Sold</h3>
-          <p id="dash-tubs">0</p>
+        <div class="cloud-pill">
+          Live · Inventory & Sales
         </div>
-        <div class="card">
-          <h3>Sales Count</h3>
-          <p id="dash-sales-count">0</p>
-        </div>
-        <div class="card wide">
-          <h3>Today</h3>
-          <p id="dash-today-tubs">0 / 0 tubs</p>
-          <p id="dash-today-revenue">0 / 0</p>
-        </div>
-      </div>
+      </header>
 
-      <h3>Sales (Last 30 Days)</h3>
-      <div style="height:260px;">
-        <canvas id="salesChart"></canvas>
-      </div>
+      <nav class="tabs">
+        <button data-tab="dashboard" class="active"><span class="icon">📊</span>Dashboard</button>
+        <button data-tab="sales"><span class="icon">🧾</span>Record Sale</button>
+        <button data-tab="inventory"><span class="icon">📦</span>Inventory</button>
+        <button data-tab="reports"><span class="icon">📑</span>Reports</button>
+        <button data-tab="settings"><span class="icon">⚙️</span>Settings</button>
+      </nav>
 
-      <h3>Low Stock Alerts</h3>
-      <ul id="low-stock-list"></ul>
-    </section>
+      <main>
+        <!-- DASHBOARD -->
+        <section id="tab-dashboard" class="tab active">
+          <div class="cards">
+            <div class="card">
+              <h3>Total Revenue</h3>
+              <p id="dash-revenue">LKR 0</p>
+            </div>
+            <div class="card">
+              <h3>Total Tubs Sold</h3>
+              <p id="dash-tubs">0</p>
+            </div>
+            <div class="card">
+              <h3>Sales Count</h3>
+              <p id="dash-sales-count">0</p>
+            </div>
+            <div class="card wide">
+              <div>
+                <h3>Today</h3>
+                <p id="dash-today-tubs">0 / 0 tubs</p>
+                <div class="card-subline" id="dash-today-revenue">0 / 0</div>
+              </div>
+              <div class="card-subline">
+                Track how close you are to today's tub & revenue targets.
+              </div>
+            </div>
+          </div>
 
-    <!-- SALES -->
-    <section id="tab-sales" class="tab">
-      <h2>Record Sale</h2>
+          <div class="section-card">
+            <h2>Sales (Last 30 Days)</h2>
+            <div style="height:260px;">
+              <canvas id="salesChart"></canvas>
+            </div>
+          </div>
 
-      <h3>Quick Sale (tap a flavour)</h3>
-      <div id="product-cards" class="cards"></div>
+          <div class="section-card">
+            <h2>Low Stock Alerts</h2>
+            <ul id="low-stock-list"></ul>
+          </div>
+        </section>
 
-      <h3>Custom Sale</h3>
-      <label>
-        Product:
-        <select id="sale-product"></select>
-      </label>
-      <label>
-        Quantity:
-        <input type="number" id="sale-qty" min="1" value="1" />
-      </label>
-      <button id="sale-submit">Save Sale</button>
-      <p id="sale-status" class="status"></p>
+        <!-- SALES -->
+        <section id="tab-sales" class="tab">
+          <div class="section-card">
+            <h2>Record Sale</h2>
 
-      <h3>Recent Sales</h3>
-      <div id="recent-sales"></div>
-    </section>
+            <h3>Quick Sale (tap a flavour)</h3>
+            <div id="product-cards" class="cards"></div>
 
-    <!-- INVENTORY -->
-    <section id="tab-inventory" class="tab">
-      <h2>Ingredients</h2>
-      <p id="inventory-total-value"></p>
-      <div id="ingredients-list"></div>
+            <h3>Custom Sale</h3>
+            <label>
+              Product:
+              <select id="sale-product"></select>
+            </label>
+            <label>
+              Quantity:
+              <input type="number" id="sale-qty" min="1" value="1" />
+            </label>
+            <button id="sale-submit">Save Sale</button>
+            <p id="sale-status" class="status"></p>
+          </div>
 
-      <h3>Add Ingredient</h3>
-      <div class="form-grid">
-        <input id="ing-name" placeholder="Name (e.g. New Syrup)" />
-        <input id="ing-unit" placeholder="Unit (g / ml / unit)" />
-        <input id="ing-stock" placeholder="Current Stock" type="number" />
-        <input id="ing-reorder" placeholder="Reorder Level" type="number" />
-        <input id="ing-cost" placeholder="Cost per Unit (LKR)" type="number" />
-        <button id="ing-add">Add</button>
-      </div>
-    </section>
+          <div class="section-card">
+            <h2>Recent Sales</h2>
+            <div id="recent-sales"></div>
+          </div>
+        </section>
 
-    <!-- REPORTS -->
-    <section id="tab-reports" class="tab">
-      <h2>Reports</h2>
-      <label>
-        Month (YYYY-MM, optional):
-        <input id="report-month" placeholder="2025-01" />
-      </label>
-      <button id="report-download">Download Monthly PDF</button>
-      <p class="hint">Leave month empty to download report for all time.</p>
-    </section>
+        <!-- INVENTORY -->
+        <section id="tab-inventory" class="tab">
+          <div class="section-card">
+            <h2>Ingredients</h2>
+            <p id="inventory-total-value"></p>
+            <div id="ingredients-list"></div>
+          </div>
 
-    <!-- SETTINGS -->
-    <section id="tab-settings" class="tab">
-      <h2>Settings</h2>
+          <div class="section-card">
+            <h2>Add Ingredient</h2>
+            <div class="form-grid">
+              <input id="ing-name" placeholder="Name (e.g. New Syrup)" />
+              <input id="ing-unit" placeholder="Unit (g / ml / unit)" />
+              <input id="ing-stock" placeholder="Current Stock" type="number" />
+              <input id="ing-reorder" placeholder="Reorder Level" type="number" />
+              <input id="ing-cost" placeholder="Cost per Unit (LKR)" type="number" />
+              <button id="ing-add">Add</button>
+            </div>
+          </div>
+        </section>
 
-      <h3>Business Info</h3>
-      <label>
-        Shop name:
-        <input id="settings-shop-name" placeholder="CLOOFY" />
-      </label>
-      <label>
-        Currency:
-        <input id="settings-currency" placeholder="LKR" />
-      </label>
+        <!-- REPORTS -->
+        <section id="tab-reports" class="tab">
+          <div class="section-card">
+            <h2>Reports</h2>
+            <label>
+              Month (YYYY-MM, optional):
+              <input id="report-month" placeholder="2025-01" />
+            </label>
+            <button id="report-download">Download Monthly PDF</button>
+            <p class="hint">Leave month empty to download report for all time.</p>
+          </div>
+        </section>
 
-      <h3>Daily Targets</h3>
-      <label>
-        Daily target tubs:
-        <input id="settings-target-tubs" type="number" placeholder="80" />
-      </label>
-      <label>
-        Daily target revenue:
-        <input id="settings-target-revenue" type="number" placeholder="24000" />
-      </label>
+        <!-- SETTINGS -->
+        <section id="tab-settings" class="tab">
+          <div class="section-card">
+            <h2>Business Info</h2>
+            <label>
+              Shop name:
+              <input id="settings-shop-name" placeholder="CLOOFY" />
+            </label>
+            <label>
+              Currency:
+              <input id="settings-currency" placeholder="LKR" />
+            </label>
+          </div>
 
-      <button id="settings-save">Save Settings</button>
-      <p id="settings-status" class="status"></p>
+          <div class="section-card">
+            <h2>Daily Targets</h2>
+            <label>
+              Daily target tubs:
+              <input id="settings-target-tubs" type="number" placeholder="80" />
+            </label>
+            <label>
+              Daily target revenue:
+              <input id="settings-target-revenue" type="number" placeholder="24000" />
+            </label>
+            <button id="settings-save">Save Settings</button>
+            <p id="settings-status" class="status"></p>
+          </div>
 
-      <h3 style="margin-top:20px; color:#d93232;">Danger Zone</h3>
-      <button id="reset-all-btn" style="background:#d93232;">Reset EVERYTHING</button>
-      <p class="hint">This will clear all sales, inventory logs and data, and reseed defaults.</p>
-    </section>
-  </main>
+          <div class="section-card">
+            <h2 style="color:#d93232;">Danger Zone</h2>
+            <button id="reset-all-btn">Reset EVERYTHING</button>
+            <p class="hint">This will clear all sales, inventory logs and data, and reseed defaults.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
 
   <script>
     // Tab switching
