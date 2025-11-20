@@ -1,4 +1,4 @@
-// CLOOFY One-File Business System (Backend + Frontend)
+// CLOOFY One-File Business System (Backend + Frontend, Upgraded)
 
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
@@ -8,7 +8,6 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---------- MIDDLEWARE ----------
 app.use(express.json());
 
 // ---------- DB SETUP ----------
@@ -16,7 +15,7 @@ const dbPath = path.join(process.env.DB_PATH || __dirname, 'cloofy.db');
 const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
-  db.run("PRAGMA foreign_keys = ON");
+  db.run('PRAGMA foreign_keys = ON');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS ingredients (
@@ -60,14 +59,21 @@ db.serialize(() => {
     )
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
   // Seed CLOOFY data if empty
-  db.get("SELECT COUNT(*) AS c FROM ingredients", (err, row) => {
+  db.get('SELECT COUNT(*) AS c FROM ingredients', (err, row) => {
     if (err) {
-      console.error("Error checking ingredients:", err);
+      console.error('Error checking ingredients:', err);
       return;
     }
     if (row.c === 0) {
-      console.log("Seeding initial CLOOFY ingredients & products...");
+      console.log('Seeding initial CLOOFY ingredients & products...');
       seedIngredientsAndProducts();
     }
   });
@@ -101,22 +107,21 @@ const getAsync = (sql, params = []) =>
 // ---------- SEED DATA ----------
 async function seedIngredientsAndProducts() {
   try {
-    // grams for all weight-based items
     const ingredients = [
       // id 1
-      { name: 'Cotton Candy Base', unit: 'g', current: 12000, reorder: 4000, cost: 3 },       // 3,000/kg
+      { name: 'Cotton Candy Base', unit: 'g', current: 12000, reorder: 4000, cost: 3 }, // 3,000/kg
       // id 2
       { name: "Hershey's Chocolate Syrup", unit: 'g', current: 6000, reorder: 2000, cost: 3.82 },
       // id 3
-      { name: "Dark Chocolate Chips", unit: 'g', current: 2000, reorder: 500, cost: 1.85 },
+      { name: 'Dark Chocolate Chips', unit: 'g', current: 2000, reorder: 500, cost: 1.85 },
       // id 4
       { name: "Hershey's Strawberry Syrup", unit: 'g', current: 6000, reorder: 2000, cost: 4.41 },
       // id 5
-      { name: "Strawberry Pebbles", unit: 'g', current: 2000, reorder: 500, cost: 2 },        // 2,000/kg
+      { name: 'Strawberry Pebbles', unit: 'g', current: 2000, reorder: 500, cost: 2 }, // 2,000/kg
       // id 6
-      { name: "Caramel Syrup", unit: 'g', current: 6000, reorder: 2000, cost: 5 },            // estimate
+      { name: 'Caramel Syrup', unit: 'g', current: 6000, reorder: 2000, cost: 5 }, // estimate
       // id 7
-      { name: "Biscoff Crumbs", unit: 'g', current: 1750, reorder: 500, cost: 5 }             // 1,250/250g
+      { name: 'Biscoff Crumbs', unit: 'g', current: 1750, reorder: 500, cost: 5 } // 1,250/250g
     ];
 
     for (const ing of ingredients) {
@@ -165,9 +170,23 @@ async function seedIngredientsAndProducts() {
       );
     }
 
-    console.log("Seeding completed.");
+    const defaultSettings = [
+      { key: 'shop_name', value: 'CLOOFY' },
+      { key: 'currency', value: 'LKR' },
+      { key: 'daily_target_tubs', value: '80' },
+      { key: 'daily_target_revenue', value: '24000' }
+    ];
+
+    for (const s of defaultSettings) {
+      await runAsync(
+        `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
+        [s.key, s.value]
+      );
+    }
+
+    console.log('Seeding completed.');
   } catch (e) {
-    console.error("Error during seeding:", e);
+    console.error('Error during seeding:', e);
   }
 }
 
@@ -210,7 +229,7 @@ app.post('/api/ingredients/:id/adjust', async (req, res) => {
     );
     await runAsync(
       `INSERT INTO inventory_logs (date, ingredient_id, change, reason)
-       VALUES (datetime('now'), ?, ?, ?)`,
+       VALUES (datetime('now','localtime'), ?, ?, ?)`,
       [req.params.id, change, reason || 'Manual adjust']
     );
 
@@ -226,7 +245,7 @@ app.get('/api/products', async (req, res) => {
   try {
     const products = await allAsync('SELECT * FROM products');
     res.json(
-      products.map(p => ({
+      products.map((p) => ({
         ...p,
         recipe: JSON.parse(p.recipe_json)
       }))
@@ -261,14 +280,16 @@ app.post('/api/sales', async (req, res) => {
 
     const recipe = JSON.parse(product.recipe_json);
 
-    // Check stock
+    // Check stock first
     for (const item of recipe) {
       const ing = await getAsync('SELECT * FROM ingredients WHERE id = ?', [item.ingredientId]);
-      if (!ing) return res.status(400).json({ error: `Ingredient ${item.ingredientId} missing` });
+      if (!ing) {
+        return res.status(400).json({ error: 'Missing ingredient with id ' + item.ingredientId });
+      }
       const required = item.qty * qty;
       if (ing.current_stock < required) {
         return res.status(400).json({
-          error: `Not enough stock for ingredient ${ing.name}`,
+          error: 'Not enough stock for ingredient ' + ing.name,
           ingredient: ing.name
         });
       }
@@ -280,21 +301,21 @@ app.post('/api/sales', async (req, res) => {
       const required = item.qty * qty;
       const newStock = ing.current_stock - required;
 
-      await runAsync(
-        'UPDATE ingredients SET current_stock = ? WHERE id = ?',
-        [newStock, ing.id]
-      );
+      await runAsync('UPDATE ingredients SET current_stock = ? WHERE id = ?', [
+        newStock,
+        ing.id
+      ]);
       await runAsync(
         `INSERT INTO inventory_logs (date, ingredient_id, change, reason)
-         VALUES (datetime('now'), ?, ?, ?)`,
-        [ing.id, -required, `Sale of ${product.name}`]
+         VALUES (datetime('now','localtime'), ?, ?, ?)`,
+        [ing.id, -required, 'Sale of ' + product.name]
       );
     }
 
     const totalPrice = product.price * qty;
     await runAsync(
       `INSERT INTO sales (date, product_id, qty, total_price)
-       VALUES (datetime('now'), ?, ?, ?)`,
+       VALUES (datetime('now','localtime'), ?, ?, ?)`,
       [product_id, qty, totalPrice]
     );
 
@@ -311,15 +332,36 @@ app.get('/api/dashboard/summary', async (req, res) => {
     const revenueRow = await getAsync('SELECT SUM(total_price) AS revenue FROM sales');
     const salesCountRow = await getAsync('SELECT COUNT(*) AS sales_count FROM sales');
     const tubsRow = await getAsync('SELECT SUM(qty) AS total_tubs FROM sales');
+
     const lowStock = await allAsync(
       'SELECT * FROM ingredients WHERE current_stock <= reorder_level'
     );
+
+    const todayRow = await getAsync(
+      `
+      SELECT SUM(total_price) AS revenue, SUM(qty) AS tubs
+      FROM sales
+      WHERE date(date) = date('now','localtime')
+    `
+    );
+
+    const settingsRows = await allAsync('SELECT key, value FROM settings');
+    const settings = {};
+    settingsRows.forEach((r) => {
+      settings[r.key] = r.value;
+    });
 
     res.json({
       revenue: revenueRow?.revenue || 0,
       sales_count: salesCountRow?.sales_count || 0,
       total_tubs: tubsRow?.total_tubs || 0,
-      low_stock: lowStock
+      low_stock: lowStock,
+      today_revenue: todayRow?.revenue || 0,
+      today_tubs: todayRow?.tubs || 0,
+      currency: settings.currency || 'LKR',
+      shop_name: settings.shop_name || 'CLOOFY',
+      daily_target_revenue: Number(settings.daily_target_revenue || 0),
+      daily_target_tubs: Number(settings.daily_target_tubs || 0)
     });
   } catch (e) {
     console.error(e);
@@ -332,7 +374,7 @@ app.get('/api/dashboard/sales-by-day', async (req, res) => {
     const rows = await allAsync(`
       SELECT date(date) AS day, SUM(total_price) AS revenue, SUM(qty) AS tubs
       FROM sales
-      WHERE date >= date('now', '-30 day')
+      WHERE date >= date('now','localtime','-30 day')
       GROUP BY date(date)
       ORDER BY date(date)
     `);
@@ -343,7 +385,7 @@ app.get('/api/dashboard/sales-by-day', async (req, res) => {
   }
 });
 
-// ---------- API: PDF REPORT ----------
+// ---------- API: REPORTS (PDF) ----------
 app.get('/api/reports/monthly-pdf', async (req, res) => {
   try {
     const month = req.query.month; // optional "YYYY-MM"
@@ -351,8 +393,11 @@ app.get('/api/reports/monthly-pdf', async (req, res) => {
     const params = month ? [month] : [];
 
     const summary = await getAsync(
-      `SELECT SUM(total_price) AS revenue, SUM(qty) AS tubs
-       FROM sales ${filter}`,
+      `
+      SELECT SUM(total_price) AS revenue, SUM(qty) AS tubs
+      FROM sales
+      ${filter}
+    `,
       params
     );
     const ingredients = await allAsync('SELECT * FROM ingredients');
@@ -369,23 +414,27 @@ app.get('/api/reports/monthly-pdf', async (req, res) => {
     doc.fontSize(20).text('CLOOFY Monthly Report', { underline: true });
     doc.moveDown();
 
-    doc.fontSize(12).text(`Month: ${month || 'All Time'}`);
-    doc.text(
-      `Total Revenue: LKR ${(summary?.revenue || 0).toFixed(2)}`
-    );
-    doc.text(`Total Tubs Sold: ${summary?.tubs || 0}`);
+    doc.fontSize(12).text('Month: ' + (month || 'All Time'));
+    doc.text('Total Revenue: LKR ' + ((summary?.revenue || 0).toFixed(2)));
+    doc.text('Total Tubs Sold: ' + (summary?.tubs || 0));
     doc.moveDown();
 
     doc.text('Low Stock Ingredients:', { underline: true });
-    const lowStock = ingredients.filter(
-      i => i.current_stock <= i.reorder_level
-    );
+    const lowStock = ingredients.filter((i) => i.current_stock <= i.reorder_level);
     if (lowStock.length === 0) {
       doc.text('- None 🎉');
     } else {
-      lowStock.forEach(i => {
+      lowStock.forEach((i) => {
         doc.text(
-          `- ${i.name}: ${i.current_stock} ${i.unit} (reorder at ${i.reorder_level})`
+          '- ' +
+            i.name +
+            ': ' +
+            i.current_stock +
+            ' ' +
+            i.unit +
+            ' (reorder at ' +
+            i.reorder_level +
+            ')'
         );
       });
     }
@@ -394,6 +443,80 @@ app.get('/api/reports/monthly-pdf', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+});
+
+// ---------- API: SETTINGS ----------
+app.get('/api/settings', async (req, res) => {
+  try {
+    const rows = await allAsync('SELECT key, value FROM settings');
+    const obj = {};
+    rows.forEach((r) => {
+      obj[r.key] = r.value;
+    });
+    res.json(obj);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+app.post('/api/settings', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const keys = Object.keys(body);
+    for (const key of keys) {
+      const value = String(body[key] ?? '');
+      await runAsync(
+        `
+        INSERT INTO settings (key, value)
+        VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `,
+        [key, value]
+      );
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// ---------- API: RESET EVERYTHING ----------
+app.post('/api/reset-all', async (req, res) => {
+  try {
+    await runAsync('DELETE FROM sales');
+    await runAsync('DELETE FROM inventory_logs');
+    await runAsync('DELETE FROM products');
+    await runAsync('DELETE FROM ingredients');
+    await runAsync('DELETE FROM settings');
+
+    await seedIngredientsAndProducts();
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to reset system' });
+  }
+});
+
+// ---------- API: RECENT SALES ----------
+app.get('/api/sales/recent', async (req, res) => {
+  try {
+    const rows = await allAsync(
+      `
+      SELECT s.date, s.qty, s.total_price, p.name AS product_name
+      FROM sales s
+      JOIN products p ON p.id = s.product_id
+      ORDER BY s.date DESC
+      LIMIT 20
+    `
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch recent sales' });
   }
 });
 
@@ -423,6 +546,8 @@ const htmlPage = `
     .card { flex: 1 1 120px; background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
     .card h3 { margin: 0 0 4px; font-size: 0.9rem; }
     .card p { margin: 0; font-size: 1.1rem; font-weight: 600; }
+
+    .card.wide { flex-basis: 100%; }
 
     #salesChart { max-height: 260px; }
 
@@ -463,6 +588,7 @@ const htmlPage = `
     <button data-tab="sales">Record Sale</button>
     <button data-tab="inventory">Inventory</button>
     <button data-tab="reports">Reports</button>
+    <button data-tab="settings">Settings</button>
   </nav>
 
   <main>
@@ -481,6 +607,11 @@ const htmlPage = `
           <h3>Sales Count</h3>
           <p id="dash-sales-count">0</p>
         </div>
+        <div class="card wide">
+          <h3>Today</h3>
+          <p id="dash-today-tubs">0 / 0 tubs</p>
+          <p id="dash-today-revenue">0 / 0</p>
+        </div>
       </div>
 
       <h3>Sales (Last 30 Days)</h3>
@@ -495,6 +626,11 @@ const htmlPage = `
     <!-- SALES -->
     <section id="tab-sales" class="tab">
       <h2>Record Sale</h2>
+
+      <h3>Quick Sale (tap a flavour)</h3>
+      <div id="product-cards" class="cards"></div>
+
+      <h3>Custom Sale</h3>
       <label>
         Product:
         <select id="sale-product"></select>
@@ -505,11 +641,15 @@ const htmlPage = `
       </label>
       <button id="sale-submit">Save Sale</button>
       <p id="sale-status" class="status"></p>
+
+      <h3>Recent Sales</h3>
+      <div id="recent-sales"></div>
     </section>
 
     <!-- INVENTORY -->
     <section id="tab-inventory" class="tab">
       <h2>Ingredients</h2>
+      <p id="inventory-total-value"></p>
       <div id="ingredients-list"></div>
 
       <h3>Add Ingredient</h3>
@@ -533,6 +673,38 @@ const htmlPage = `
       <button id="report-download">Download Monthly PDF</button>
       <p class="hint">Leave month empty to download report for all time.</p>
     </section>
+
+    <!-- SETTINGS -->
+    <section id="tab-settings" class="tab">
+      <h2>Settings</h2>
+
+      <h3>Business Info</h3>
+      <label>
+        Shop name:
+        <input id="settings-shop-name" placeholder="CLOOFY" />
+      </label>
+      <label>
+        Currency:
+        <input id="settings-currency" placeholder="LKR" />
+      </label>
+
+      <h3>Daily Targets</h3>
+      <label>
+        Daily target tubs:
+        <input id="settings-target-tubs" type="number" placeholder="80" />
+      </label>
+      <label>
+        Daily target revenue:
+        <input id="settings-target-revenue" type="number" placeholder="24000" />
+      </label>
+
+      <button id="settings-save">Save Settings</button>
+      <p id="settings-status" class="status"></p>
+
+      <h3 style="margin-top:20px; color:#d93232;">Danger Zone</h3>
+      <button id="reset-all-btn" style="background:#d93232;">Reset EVERYTHING</button>
+      <p class="hint">This will clear all sales, inventory logs and data, and reseed defaults.</p>
+    </section>
   </main>
 
   <script>
@@ -540,32 +712,50 @@ const htmlPage = `
     const tabs = document.querySelectorAll('nav.tabs button');
     const sections = document.querySelectorAll('main .tab');
 
-    tabs.forEach(btn => {
-      btn.addEventListener('click', () => {
-        tabs.forEach(b => b.classList.remove('active'));
-        sections.forEach(s => s.classList.remove('active'));
+    tabs.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        tabs.forEach(function(b) { b.classList.remove('active'); });
+        sections.forEach(function(s) { s.classList.remove('active'); });
         btn.classList.add('active');
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
       });
     });
 
-    let salesChart;
+    let salesChart = null;
 
     async function loadDashboard() {
       const res = await fetch('/api/dashboard/summary');
       const data = await res.json();
 
+      const currency = data.currency || 'LKR';
+
       document.getElementById('dash-revenue').textContent =
-        'LKR ' + Number(data.revenue || 0).toLocaleString();
+        currency + ' ' + Number(data.revenue || 0).toLocaleString();
       document.getElementById('dash-tubs').textContent = data.total_tubs || 0;
       document.getElementById('dash-sales-count').textContent = data.sales_count || 0;
+
+      const shopName = data.shop_name || 'CLOOFY';
+      document.querySelector('.topbar h1').textContent = shopName + ' – Control Panel';
+
+      const todayTubs = data.today_tubs || 0;
+      const targetTubs = data.daily_target_tubs || 0;
+      const todayRev = data.today_revenue || 0;
+      const targetRev = data.daily_target_revenue || 0;
+
+      document.getElementById('dash-today-tubs').textContent =
+        String(todayTubs) + ' / ' + String(targetTubs || 0) + ' tubs';
+
+      document.getElementById('dash-today-revenue').textContent =
+        currency + ' ' + todayRev.toLocaleString() +
+        ' / ' +
+        currency + ' ' + (targetRev || 0).toLocaleString();
 
       const lowList = document.getElementById('low-stock-list');
       lowList.innerHTML = '';
       if (!data.low_stock || data.low_stock.length === 0) {
         lowList.innerHTML = '<li>No low stock items 🎉</li>';
       } else {
-        data.low_stock.forEach(ing => {
+        data.low_stock.forEach(function(ing) {
           const li = document.createElement('li');
           li.textContent =
             ing.name + ' – ' +
@@ -577,17 +767,17 @@ const htmlPage = `
 
       const resChart = await fetch('/api/dashboard/sales-by-day');
       const daysData = await resChart.json();
-      const labels = daysData.map(r => r.day);
-      const revenue = daysData.map(r => r.revenue);
+      const labels = daysData.map(function(r) { return r.day; });
+      const revenue = daysData.map(function(r) { return r.revenue; });
 
       const ctx = document.getElementById('salesChart').getContext('2d');
       if (salesChart) salesChart.destroy();
       salesChart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels,
+          labels: labels,
           datasets: [{
-            label: 'Revenue (LKR)',
+            label: 'Revenue (' + currency + ')',
             data: revenue
           }]
         },
@@ -602,40 +792,60 @@ const htmlPage = `
       const res = await fetch('/api/ingredients');
       const ingredients = await res.json();
       const container = document.getElementById('ingredients-list');
+      const totalValEl = document.getElementById('inventory-total-value');
       container.innerHTML = '';
 
-      ingredients.forEach(ing => {
+      let totalValue = 0;
+
+      ingredients.forEach(function(ing) {
+        totalValue += ing.current_stock * ing.unit_cost;
+
         const div = document.createElement('div');
         div.className = 'ingredient-row';
-        div.innerHTML = \`
-          <div>
-            <strong>\${ing.name}</strong><br/>
-            Stock: \${ing.current_stock} \${ing.unit} (Reorder at \${ing.reorder_level})<br/>
-            Cost per \${ing.unit}: LKR \${ing.unit_cost}
-          </div>
-          <div>
-            <input type="number" step="any" placeholder="Adjust stock" class="adj-input" />
-            <button class="adj-btn">Apply</button>
-          </div>
-        \`;
+        const low = ing.current_stock <= ing.reorder_level;
+
+        var inner = '';
+        inner += '<div>';
+        inner += '<strong>' + ing.name + '</strong><br/>';
+        inner += 'Stock: ' + ing.current_stock + ' ' + ing.unit +
+                 ' (Reorder at ' + ing.reorder_level + ')<br/>';
+        inner += 'Cost per ' + ing.unit + ': LKR ' + ing.unit_cost + '<br/>';
+        inner += '<span style="font-size:0.8rem; opacity:0.8;">';
+        inner += 'Value: LKR ' + (ing.current_stock * ing.unit_cost).toFixed(2);
+        inner += '</span>';
+        if (low) {
+          inner += '<br/><span style="color:#d93232;font-size:0.8rem;">Low stock!</span>';
+        }
+        inner += '</div>';
+        inner += '<div>';
+        inner += '<input type="number" step="any" placeholder="Adjust stock (+/-)" class="adj-input" />';
+        inner += '<button class="adj-btn">Apply</button>';
+        inner += '</div>';
+
+        div.innerHTML = inner;
+
         const input = div.querySelector('.adj-input');
         const button = div.querySelector('.adj-btn');
-        button.addEventListener('click', async () => {
+        button.addEventListener('click', async function() {
           const change = Number(input.value);
           if (!change) return;
           await fetch('/api/ingredients/' + ing.id + '/adjust', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ change, reason: 'Manual adjust' })
+            body: JSON.stringify({ change: change, reason: 'Manual adjust' })
           });
           await loadIngredients();
           await loadDashboard();
         });
+
         container.appendChild(div);
       });
+
+      totalValEl.textContent =
+        'Total inventory value (approx): LKR ' + totalValue.toFixed(2);
     }
 
-    document.getElementById('ing-add').addEventListener('click', async () => {
+    document.getElementById('ing-add').addEventListener('click', async function() {
       const name = document.getElementById('ing-name').value;
       const unit = document.getElementById('ing-unit').value;
       const stock = Number(document.getElementById('ing-stock').value || 0);
@@ -651,8 +861,8 @@ const htmlPage = `
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          unit,
+          name: name,
+          unit: unit,
           current_stock: stock,
           reorder_level: reorder,
           unit_cost: cost
@@ -672,17 +882,62 @@ const htmlPage = `
     async function loadProductsForSales() {
       const res = await fetch('/api/products');
       const products = await res.json();
+
       const select = document.getElementById('sale-product');
+      const cardsContainer = document.getElementById('product-cards');
       select.innerHTML = '';
-      products.forEach(p => {
-        const opt = document.createElement('option');
+      cardsContainer.innerHTML = '';
+
+      products.forEach(function(p) {
+        var opt = document.createElement('option');
         opt.value = p.id;
-        opt.textContent = \`\${p.name} (LKR \${p.price})\`;
+        opt.textContent = p.name + ' (LKR ' + p.price + ')';
         select.appendChild(opt);
+
+        var card = document.createElement('div');
+        card.className = 'card';
+        card.style.cursor = 'pointer';
+        card.innerHTML =
+          '<h3>' + p.name + '</h3>' +
+          '<p>LKR ' + p.price + '</p>' +
+          '<p style="font-size:0.8rem; opacity:0.8;">Tap to add 1 sale</p>';
+        card.addEventListener('click', function() {
+          createSale(p.id, 1);
+        });
+        cardsContainer.appendChild(card);
       });
     }
 
-    document.getElementById('sale-submit').addEventListener('click', async () => {
+    async function createSale(product_id, qty) {
+      const status = document.getElementById('sale-status');
+      status.textContent = '';
+      status.className = 'status';
+
+      try {
+        const res = await fetch('/api/sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_id: product_id, qty: qty })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          status.textContent = 'Error: ' + (data.error || 'Failed');
+          status.className = 'status error';
+        } else {
+          status.textContent = 'Sale recorded. Total: LKR ' + data.totalPrice;
+          status.className = 'status success';
+          await loadDashboard();
+          await loadIngredients();
+          await loadRecentSales();
+        }
+      } catch (e) {
+        console.error(e);
+        status.textContent = 'Error recording sale.';
+        status.className = 'status error';
+      }
+    }
+
+    document.getElementById('sale-submit').addEventListener('click', async function() {
       const product_id = Number(document.getElementById('sale-product').value);
       const qty = Number(document.getElementById('sale-qty').value || 1);
       const status = document.getElementById('sale-status');
@@ -695,30 +950,39 @@ const htmlPage = `
         return;
       }
 
-      try {
-        const res = await fetch('/api/sales', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_id, qty })
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          status.textContent = 'Error: ' + (data.error || 'Failed');
-          status.className = 'status error';
-        } else {
-          status.textContent = 'Sale recorded. Total: LKR ' + data.totalPrice;
-          status.className = 'status success';
-          await loadDashboard();
-          await loadIngredients();
-        }
-      } catch (e) {
-        console.error(e);
-        status.textContent = 'Error recording sale.';
-        status.className = 'status error';
-      }
+      await createSale(product_id, qty);
     });
 
-    document.getElementById('report-download').addEventListener('click', () => {
+    async function loadRecentSales() {
+      const res = await fetch('/api/sales/recent');
+      const sales = await res.json();
+      const container = document.getElementById('recent-sales');
+      container.innerHTML = '';
+
+      if (!sales.length) {
+        container.textContent = 'No sales yet.';
+        return;
+      }
+
+      sales.forEach(function(s) {
+        const div = document.createElement('div');
+        div.className = 'ingredient-row';
+        const dateStr = new Date(s.date).toLocaleString();
+
+        var inner = '';
+        inner += '<div>';
+        inner += '<strong>' + s.product_name + '</strong><br/>';
+        inner += 'Qty: ' + s.qty + ' – Total: LKR ' + s.total_price + '<br/>';
+        inner += '<span style="font-size:0.8rem; opacity:0.8;">' + dateStr + '</span>';
+        inner += '</div>';
+
+        div.innerHTML = inner;
+        container.appendChild(div);
+      });
+    }
+
+    // Reports / PDF
+    document.getElementById('report-download').addEventListener('click', function() {
       const month = document.getElementById('report-month').value.trim();
       const url = month
         ? '/api/reports/monthly-pdf?month=' + encodeURIComponent(month)
@@ -726,10 +990,77 @@ const htmlPage = `
       window.open(url, '_blank');
     });
 
+    // Settings
+    async function loadSettings() {
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+
+      document.getElementById('settings-shop-name').value = data.shop_name || 'CLOOFY';
+      document.getElementById('settings-currency').value = data.currency || 'LKR';
+      document.getElementById('settings-target-tubs').value = data.daily_target_tubs || '';
+      document.getElementById('settings-target-revenue').value = data.daily_target_revenue || '';
+    }
+
+    document.getElementById('settings-save').addEventListener('click', async function() {
+      const body = {
+        shop_name: document.getElementById('settings-shop-name').value.trim(),
+        currency: document.getElementById('settings-currency').value.trim(),
+        daily_target_tubs: document.getElementById('settings-target-tubs').value.trim(),
+        daily_target_revenue: document.getElementById('settings-target-revenue').value.trim()
+      };
+      const status = document.getElementById('settings-status');
+      status.textContent = '';
+      status.className = 'status';
+
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          status.textContent = 'Error saving settings';
+          status.className = 'status error';
+          return;
+        }
+        status.textContent = 'Settings saved';
+        status.className = 'status success';
+        await loadDashboard();
+      } catch (e) {
+        console.error(e);
+        status.textContent = 'Error saving settings';
+        status.className = 'status error';
+      }
+    });
+
+    document.getElementById('reset-all-btn').addEventListener('click', async function() {
+      if (!confirm('Are you sure you want to reset EVERYTHING? This will delete all sales, inventory logs and data.')) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/reset-all', { method: 'POST' });
+        if (!res.ok) {
+          alert('Failed to reset system.');
+          return;
+        }
+        alert('System reset. Everything is back to defaults.');
+        await loadDashboard();
+        await loadIngredients();
+        await loadProductsForSales();
+        await loadRecentSales();
+        await loadSettings();
+      } catch (e) {
+        console.error(e);
+        alert('Error resetting system.');
+      }
+    });
+
     (async function init() {
       await loadDashboard();
       await loadIngredients();
       await loadProductsForSales();
+      await loadRecentSales();
+      await loadSettings();
     })();
   </script>
 </body>
@@ -742,5 +1073,5 @@ app.get('/', (req, res) => {
 
 // ---------- START SERVER ----------
 app.listen(PORT, () => {
-  console.log(`CLOOFY system running at http://localhost:${PORT}`);
+  console.log('CLOOFY system running at http://localhost:' + PORT);
 });
